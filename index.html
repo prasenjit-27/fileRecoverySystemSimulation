@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive File System Recovery Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="header">
+  <div class="header-title"><i class="fas fa-hard-drive"></i>File System Recovery Simulator</div>
+  <div class="header-sep"></div>
+  <div class="header-controls">
+    <button class="btn" id="btnPrev" title="Previous Step"><i class="fas fa-step-backward"></i></button>
+    <button class="btn primary" id="btnPlay" title="Play"><i class="fas fa-play"></i> Play</button>
+    <button class="btn" id="btnNext" title="Next Step"><i class="fas fa-step-forward"></i></button>
+    <button class="btn" id="btnReset" title="Reset Operation"><i class="fas fa-undo"></i></button>
+  </div>
+  <div class="header-sep"></div>
+  <div class="toggle-group"><span>Explain</span><div class="toggle active" id="toggleExplain" role="switch" aria-label="Toggle explain mode"></div></div>
+  <div class="header-sep"></div>
+  <div class="toggle-group"><span>Strategy</span><select class="strategy-sel" id="selStrategy" aria-label="Allocation strategy"><option value="contiguous">Contiguous</option><option value="linked">Linked</option><option value="indexed">Indexed</option></select></div>
+  <div class="header-sep"></div>
+  <div class="toggle-group"><span>Cache</span><div class="toggle" id="toggleCache" role="switch" aria-label="Toggle caching"></div></div>
+  <div class="toggle-group"><span>Read-Ahead</span><div class="toggle" id="toggleReadahead" role="switch" aria-label="Toggle read-ahead"></div></div>
+  <div class="toggle-group"><span>Write Buf</span><div class="toggle" id="toggleWriteBuf" role="switch" aria-label="Toggle write buffer"></div></div>
+  <div class="header-spacer"></div>
+  <button class="btn theme-toggle" id="btnTheme" title="Toggle theme"><i class="fas fa-sun"></i><i class="fas fa-moon"></i></button>
+</header>
+
+<div class="main-layout">
+  <div class="left-col">
+    <div class="panel" style="height:100%">
+      <div class="panel-header"><i class="fas fa-folder-tree"></i> File Explorer</div>
+      <div class="panel-body" id="fileTree"></div>
+    </div>
+  </div>
+  <div class="center-col">
+    <div class="panel" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;">
+      <div class="panel-header"><i class="fas fa-th"></i> Disk Block Map</div>
+      <div class="panel-body" style="overflow-y:auto;flex:1;">
+        <div class="disk-grid-wrapper" id="diskGridWrapper">
+          <svg class="connections-svg" id="connectionsSvg"></svg>
+          <div class="disk-grid" id="diskGrid"></div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-swatch sw-superblock"></div>Superblock</div>
+          <div class="legend-item"><div class="legend-swatch sw-filetable"></div>File Table</div>
+          <div class="legend-item"><div class="legend-swatch sw-journal"></div>Journal</div>
+          <div class="legend-item"><div class="legend-swatch sw-free"></div>Free</div>
+          <div class="legend-item"><div class="legend-swatch sw-allocated"></div>Allocated</div>
+          <div class="legend-item"><div class="legend-swatch sw-corrupted"></div>Corrupted</div>
+          <div class="legend-item"><div class="legend-swatch sw-cached"></div>Cached</div>
+          <div class="legend-item"><div class="legend-swatch sw-index"></div>Index Block</div>
+        </div>
+        <div style="margin-top:8px;">
+          <div class="opt-label"><i class="fas fa-bolt" style="margin-right:4px;"></i>Cache</div>
+          <div class="opt-strip" id="cacheStrip"><span style="font-size:10px;color:var(--fg-muted);font-style:italic;">Empty</span></div>
+        </div>
+        <div style="margin-top:6px;">
+          <div class="opt-label"><i class="fas fa-inbox" style="margin-right:4px;"></i>Write Buffer</div>
+          <div class="opt-strip" id="bufferStrip"><span style="font-size:10px;color:var(--fg-muted);font-style:italic;">Empty</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="right-col">
+    <div class="log-section panel">
+      <div class="panel-header"><i class="fas fa-terminal"></i> System Call Log</div>
+      <div class="log-entries" id="syscallLog"><div class="empty-state" style="height:auto;padding:20px 0;"><i class="fas fa-terminal"></i><span>No system calls yet</span></div></div>
+    </div>
+    <div class="log-section panel" style="flex:0.6;">
+      <div class="panel-header"><i class="fas fa-scroll"></i> Journal</div>
+      <div class="journal-entries" id="journalLog"><div class="empty-state" style="height:auto;padding:12px 0;"><i class="fas fa-scroll"></i><span>Journal empty</span></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <div class="step-progress">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-text" id="progressText">Idle</div>
+  </div>
+  <div class="step-info" id="stepInfo">
+    <div class="step-title" id="stepTitle">Ready</div>
+    <div class="step-syscall" id="stepSyscall"></div>
+    <div class="step-explain" id="stepExplain">Choose an operation below to begin the simulation.</div>
+  </div>
+  <div class="action-row">
+    <button class="btn primary" id="btnCreate"><i class="fas fa-file-circle-plus"></i> Create File</button>
+    <button class="btn info" id="btnWrite"><i class="fas fa-pen-to-square"></i> Write Data</button>
+    <button class="btn" id="btnRead"><i class="fas fa-book-open"></i> Read File</button>
+    <button class="btn danger" id="btnDelete"><i class="fas fa-trash-can"></i> Delete File</button>
+    <div class="header-sep"></div>
+    <button class="btn danger" id="btnCrash"><i class="fas fa-bolt"></i> Simulate Crash</button>
+    <button class="btn warning" id="btnRecover"><i class="fas fa-shield-halved"></i> Recover</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalContent"></div></div>
+<div class="block-tooltip" id="blockTooltip"></div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
