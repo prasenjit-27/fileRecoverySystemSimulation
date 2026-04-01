@@ -1,109 +1,215 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Interactive File System Recovery Simulator</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File System Simulator</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
-
-<header class="header">
-  <div class="header-title"><i class="fas fa-hard-drive"></i>File System Recovery Simulator</div>
-  <div class="header-sep"></div>
-  <div class="header-controls">
-    <button class="btn" id="btnPrev" title="Previous Step"><i class="fas fa-step-backward"></i></button>
-    <button class="btn primary" id="btnPlay" title="Play"><i class="fas fa-play"></i> Play</button>
-    <button class="btn" id="btnNext" title="Next Step"><i class="fas fa-step-forward"></i></button>
-    <button class="btn" id="btnReset" title="Reset Operation"><i class="fas fa-undo"></i></button>
-  </div>
-  <div class="header-sep"></div>
-  <div class="toggle-group"><span>Explain</span><div class="toggle active" id="toggleExplain" role="switch" aria-label="Toggle explain mode"></div></div>
-  <div class="header-sep"></div>
-  <div class="toggle-group"><span>Strategy</span><select class="strategy-sel" id="selStrategy" aria-label="Allocation strategy"><option value="contiguous">Contiguous</option><option value="linked">Linked</option><option value="indexed">Indexed</option></select></div>
-  <div class="header-sep"></div>
-  <div class="toggle-group"><span>Cache</span><div class="toggle" id="toggleCache" role="switch" aria-label="Toggle caching"></div></div>
-  <div class="toggle-group"><span>Read-Ahead</span><div class="toggle" id="toggleReadahead" role="switch" aria-label="Toggle read-ahead"></div></div>
-  <div class="toggle-group"><span>Write Buf</span><div class="toggle" id="toggleWriteBuf" role="switch" aria-label="Toggle write buffer"></div></div>
-  <div class="header-spacer"></div>
-  <button class="btn theme-toggle" id="btnTheme" title="Toggle theme"><i class="fas fa-sun"></i><i class="fas fa-moon"></i></button>
-</header>
-
-<div class="main-layout">
-  <div class="left-col">
-    <div class="panel" style="height:100%">
-      <div class="panel-header"><i class="fas fa-folder-tree"></i> File Explorer</div>
-      <div class="panel-body" id="fileTree"></div>
-    </div>
-  </div>
-  <div class="center-col">
-    <div class="panel" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;">
-      <div class="panel-header"><i class="fas fa-th"></i> Disk Block Map</div>
-      <div class="panel-body" style="overflow-y:auto;flex:1;">
-        <div class="disk-grid-wrapper" id="diskGridWrapper">
-          <svg class="connections-svg" id="connectionsSvg"></svg>
-          <div class="disk-grid" id="diskGrid"></div>
+    <header>
+        <div class="header-left">
+            <i class="fa-solid fa-hard-drive"></i>
+            <span>File System Simulator</span>
         </div>
-        <div class="legend">
-          <div class="legend-item"><div class="legend-swatch sw-superblock"></div>Superblock</div>
-          <div class="legend-item"><div class="legend-swatch sw-filetable"></div>File Table</div>
-          <div class="legend-item"><div class="legend-swatch sw-journal"></div>Journal</div>
-          <div class="legend-item"><div class="legend-swatch sw-free"></div>Free</div>
-          <div class="legend-item"><div class="legend-swatch sw-allocated"></div>Allocated</div>
-          <div class="legend-item"><div class="legend-swatch sw-corrupted"></div>Corrupted</div>
-          <div class="legend-item"><div class="legend-swatch sw-cached"></div>Cached</div>
-          <div class="legend-item"><div class="legend-swatch sw-index"></div>Index Block</div>
+        <div class="header-center">
+            <span class="disk-label">/dev/sda1</span>
+            <span class="disk-size">1 MB &middot; 256 blocks &times; 4 KB</span>
         </div>
-        <div style="margin-top:8px;">
-          <div class="opt-label"><i class="fas fa-bolt" style="margin-right:4px;"></i>Cache</div>
-          <div class="opt-strip" id="cacheStrip"><span style="font-size:10px;color:var(--fg-muted);font-style:italic;">Empty</span></div>
+        <div class="header-right">
+            <button id="btn-theme" class="header-btn theme-toggle" title="Toggle Theme">
+                <i class="fa-solid fa-moon" id="theme-icon"></i>
+            </button>
+            <button id="btn-reset" class="header-btn" title="Reset System">
+                <i class="fa-solid fa-rotate-right"></i> Reset
+            </button>
+            <button id="btn-format" class="header-btn danger" title="Format Disk">
+                <i class="fa-solid fa-eraser"></i> Format
+            </button>
         </div>
-        <div style="margin-top:6px;">
-          <div class="opt-label"><i class="fas fa-inbox" style="margin-right:4px;"></i>Write Buffer</div>
-          <div class="opt-strip" id="bufferStrip"><span style="font-size:10px;color:var(--fg-muted);font-style:italic;">Empty</span></div>
+    </header>
+
+    <main>
+        <section class="panel panel-left">
+            <div class="panel-section">
+                <div class="section-header">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <span>File Manager</span>
+                </div>
+                <div class="btn-group">
+                    <button id="btn-new-file" class="action-btn primary full-width">
+                        <i class="fa-solid fa-plus"></i> New File
+                    </button>
+                </div>
+                <div class="btn-group">
+                    <button id="btn-allocate-random" class="action-btn full-width">
+                        <i class="fa-solid fa-shuffle"></i> Allocate Random
+                    </button>
+                </div>
+                <div class="btn-group">
+                    <button id="btn-optimize" class="action-btn accent-btn full-width">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Optimize
+                    </button>
+                </div>
+                <div class="btn-divider">
+                    <span class="divider-line"></span>
+                    <span class="divider-label">System</span>
+                    <span class="divider-line"></span>
+                </div>
+                <div class="btn-group">
+                    <button id="btn-crash-system" class="action-btn danger full-width">
+                        <i class="fa-solid fa-skull-crossbones"></i> Crash System
+                    </button>
+                </div>
+                <div class="btn-group">
+                    <button id="btn-recover-system" class="action-btn recover-btn full-width">
+                        <i class="fa-solid fa-shield-halved"></i> Recover System
+                    </button>
+                </div>
+                <div class="file-list-wrap">
+                    <div class="file-list-header">
+                        <span class="file-list-title">Files</span>
+                        <span class="file-list-count" id="file-count">0</span>
+                    </div>
+                    <div class="file-list" id="file-list"></div>
+                </div>
+            </div>
+
+            <div class="panel-section" id="rw-panel" style="display:none;">
+                <div class="section-header">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span id="rw-panel-title">Editor</span>
+                    <span id="rw-status" class="rw-status status-ok">OK</span>
+                </div>
+                <div class="rw-meta">
+                    <span id="rw-filename" class="rw-filename"></span>
+                    <span id="rw-size" class="rw-size"></span>
+                </div>
+                <textarea id="file-content" class="file-content-editor" placeholder="Enter file content..." spellcheck="false"></textarea>
+                <div class="rw-actions">
+                    <button id="btn-write" class="action-btn primary"><i class="fa-solid fa-floppy-disk"></i> Write</button>
+                    <button id="btn-read" class="action-btn"><i class="fa-solid fa-book-open"></i> Read</button>
+                    <button id="btn-close-file" class="action-btn"><i class="fa-solid fa-xmark"></i> Close</button>
+                </div>
+            </div>
+
+            <div class="panel-section" id="recovery-panel" style="display:none;">
+                <div class="section-header">
+                    <i class="fa-solid fa-heart-pulse"></i>
+                    <span>Recovery</span>
+                </div>
+                <div class="recovery-file-name" id="recovery-file-name"></div>
+                <div class="recovery-bar-track">
+                    <div class="recovery-bar-fill" id="recovery-bar-fill"></div>
+                </div>
+                <div class="recovery-pct" id="recovery-pct">0%</div>
+                <div class="recovery-steps" id="recovery-steps"></div>
+            </div>
+
+            <div class="panel-section analytics-section">
+                <div class="section-header">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>Analytics</span>
+                </div>
+                <div class="analytics-grid">
+                    <div class="pie-wrap">
+                        <canvas id="pie-chart" width="140" height="140"></canvas>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Used</div>
+                            <div class="stat-value blue" id="stat-used">8 KB</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Free</div>
+                            <div class="stat-value green" id="stat-free">1016 KB</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Health</div>
+                            <div class="stat-value green" id="stat-health">100%</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Files</div>
+                            <div class="stat-value blue" id="stat-files">0</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="legend-bar">
+                    <span class="legend-chip"><span class="chip-dot free"></span>Free</span>
+                    <span class="legend-chip"><span class="chip-dot superblock"></span>Super</span>
+                    <span class="legend-chip"><span class="chip-dot allocated"></span>Alloc</span>
+                    <span class="legend-chip"><span class="chip-dot damaged"></span>Damaged</span>
+                    <span class="legend-chip"><span class="chip-dot recovering"></span>Recovering</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel panel-center">
+            <div class="disk-header">
+                <div class="section-header" style="margin-bottom:0">
+                    <i class="fa-solid fa-table-cells"></i>
+                    <span>Disk Blocks</span>
+                    <span class="block-count" id="block-count">256</span>
+                </div>
+                <div class="disk-zoom">
+                    <button id="btn-zoom-out" class="zoom-btn"><i class="fa-solid fa-minus"></i></button>
+                    <span id="zoom-level">100%</span>
+                    <button id="btn-zoom-in" class="zoom-btn"><i class="fa-solid fa-plus"></i></button>
+                </div>
+            </div>
+            <div class="disk-container" id="disk-container"></div>
+            <div class="block-tooltip" id="block-tooltip" style="display:none;"></div>
+        </section>
+
+        <section class="panel panel-right">
+            <div class="panel-section flex-grow">
+                <div class="section-header">
+                    <i class="fa-solid fa-terminal"></i>
+                    <span>System Call Log</span>
+                    <button id="btn-clear-log" class="clear-log-btn" title="Clear">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+                <div class="journal-list" id="journal-list"></div>
+            </div>
+            <div class="panel-section">
+                <div class="section-header">
+                    <i class="fa-solid fa-tags"></i>
+                    <span>Metadata</span>
+                </div>
+                <div class="meta-grid" id="meta-grid"></div>
+            </div>
+            <div class="panel-section">
+                <div class="section-header">
+                    <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                    <span>Disk I/O</span>
+                </div>
+                <div class="io-grid" id="io-grid"></div>
+            </div>
+        </section>
+    </main>
+
+    <div class="modal-overlay" id="modal-new-file" style="display:none;">
+        <div class="modal">
+            <div class="modal-header">
+                <span>Create New File</span>
+                <button class="modal-close" id="modal-close-new"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <label for="input-filename">Filename</label>
+                <input type="text" id="input-filename" placeholder="e.g. report.txt" autocomplete="off">
+                <label for="input-filesize">Size (KB)</label>
+                <input type="number" id="input-filesize" placeholder="e.g. 8" min="1" max="1020" value="8">
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn" id="modal-cancel-new">Cancel</button>
+                <button class="action-btn primary" id="modal-confirm-new">Create</button>
+            </div>
         </div>
-      </div>
     </div>
-  </div>
-  <div class="right-col">
-    <div class="log-section panel">
-      <div class="panel-header"><i class="fas fa-terminal"></i> System Call Log</div>
-      <div class="log-entries" id="syscallLog"><div class="empty-state" style="height:auto;padding:20px 0;"><i class="fas fa-terminal"></i><span>No system calls yet</span></div></div>
-    </div>
-    <div class="log-section panel" style="flex:0.6;">
-      <div class="panel-header"><i class="fas fa-scroll"></i> Journal</div>
-      <div class="journal-entries" id="journalLog"><div class="empty-state" style="height:auto;padding:12px 0;"><i class="fas fa-scroll"></i><span>Journal empty</span></div></div>
-    </div>
-  </div>
-</div>
 
-<div class="bottom-bar">
-  <div class="step-progress">
-    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-    <div class="progress-text" id="progressText">Idle</div>
-  </div>
-  <div class="step-info" id="stepInfo">
-    <div class="step-title" id="stepTitle">Ready</div>
-    <div class="step-syscall" id="stepSyscall"></div>
-    <div class="step-explain" id="stepExplain">Choose an operation below to begin the simulation.</div>
-  </div>
-  <div class="action-row">
-    <button class="btn primary" id="btnCreate"><i class="fas fa-file-circle-plus"></i> Create File</button>
-    <button class="btn info" id="btnWrite"><i class="fas fa-pen-to-square"></i> Write Data</button>
-    <button class="btn" id="btnRead"><i class="fas fa-book-open"></i> Read File</button>
-    <button class="btn danger" id="btnDelete"><i class="fas fa-trash-can"></i> Delete File</button>
-    <div class="header-sep"></div>
-    <button class="btn danger" id="btnCrash"><i class="fas fa-bolt"></i> Simulate Crash</button>
-    <button class="btn warning" id="btnRecover"><i class="fas fa-shield-halved"></i> Recover</button>
-  </div>
-</div>
-
-<div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalContent"></div></div>
-<div class="block-tooltip" id="blockTooltip"></div>
-<div class="toast-container" id="toastContainer"></div>
-
-<script src="script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
