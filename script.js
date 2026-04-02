@@ -136,7 +136,7 @@ function createFile(name, sizeKB) {
     var file = { id: nextFileId++, name: name, sizeKB: sizeKB, reservedKB: sizeKB, blocks: blks, content: '', crashed: false, damagedBlocks: [], intactBlocks: [], everRecovered: false };
     files.push(file);
     blks.forEach(function(b) { hlBlock(b); });
-    addLog('create', 'create()', '"' + name + '" -> ' + needed + ' blocks [' + blks.join(',') + '] (' + sizeKB + ' KB)');
+    addLog('create', 'open()', 'open("' + name + '", O_CREAT | O_RDWR, 0644)');
     addLog('system', 'journal_write()', 'journal: CREATE "' + name + '" committed');
     renderAll();
     return true;
@@ -149,7 +149,7 @@ function deleteFile(id) {
     f.blocks.forEach(function(b) { diskBlocks[b] = 'free'; hlBlock(b); });
     files = files.filter(function(x) { return x.id !== id; });
     if (openFileId === id) { openFileId = null; rwPanel.style.display = 'none'; }
-    addLog('delete', 'unlink()', '"' + f.name + '" freed ' + f.blocks.length + ' blocks');
+    addLog('delete', 'unlink()', '"' + f.name + '" freed...' + f.blocks.length + ' blocks');
     renderAll();
 }
 
@@ -173,7 +173,7 @@ function openFile(id) {
         $('file-content').value = f.content || '(empty)';
         $('file-content').disabled = false;
     }
-    addLog('open', 'open()', '"' + f.name + '" fd=' + f.id + ' O_RDWR');
+    addLog('open', 'open()', 'open("' + f.name + '", O_RDWR) = ' + f.id);
     f.blocks.forEach(function(b) { hlBlock(b); });
     renderFileList();
 }
@@ -195,7 +195,7 @@ function readFile() {
     for (var i = 0; i < files.length; i++) { if (files[i].id === openFileId) { f = files[i]; break; } }
     if (!f) return;
     if (f.crashed) { addLog('error', 'read()', 'EIO: "' + f.name + '" has damaged blocks -- cannot read'); return; }
-    addLog('read', 'read()', 'fd=' + f.id + ' from ' + f.blocks.length + ' blocks');
+    addLog('read', 'read()', 'read(' + f.id + ', buffer, ' + f.content.length + ')');
     $('file-content').value = f.content || '(empty)';
     ioStats.reads++;
     ioStats.bytesRead += f.content.length;
@@ -215,7 +215,7 @@ function writeFile() {
     var needed = Math.max(1, Math.ceil(txt.length / CHARS_PER_BLOCK));
     var current = f.blocks.length;
 
-    addLog('write', 'write()', 'fd=' + f.id + ' count=' + txt.length + ' bytes -> need ' + needed + ' blocks, have ' + current);
+    addLog('write', 'write()', 'write(' + f.id + ', buffer, ' + txt.length + ')');
 
     if (needed > current) {
         var extra = allocBlocksRandom(needed - current);
@@ -272,7 +272,7 @@ async function optimizeSystem() {
         }
     }
     if (crashedFiles.length === 0 && damagedOrphan.length === 0) {
-        addLog('optimize', 'ioctl(DEFRAG)', 'Starting defragmentation...');
+        addLog('optimize', 'ioctl()', 'ioctl(fd, FS_IOC_DEFRAG)');
         await defragment();
         return;
     }
@@ -357,96 +357,187 @@ async function crashSystem() {
 
 async function recoverSystem() {
     if (isBusy) return;
+
     var crashed = files.filter(function(f) { return f.crashed; });
-    if (crashed.length === 0) { addLog('recover', 'fsck()', 'No crashed files -- system healthy'); return; }
+    if (crashed.length === 0) {
+        addLog('recover', 'fsck()', 'No crashed files -- system healthy');
+        return;
+    }
+
     isBusy = true;
     recoveryPanel.style.display = 'block';
+
     var fileIdx = 0;
+
     for (var fi = 0; fi < crashed.length; fi++) {
         var f = crashed[fi];
         fileIdx++;
+
         var damaged = f.damagedBlocks.slice();
         var intact = f.intactBlocks.slice();
-        $('recovery-file-name').textContent = '[' + fileIdx + '/' + crashed.length + '] ' + f.name;
+
+        $('recovery-file-name').textContent =
+            '[' + fileIdx + '/' + crashed.length + '] ' + f.name;
+
         $('recovery-bar-fill').style.width = '0%';
         $('recovery-pct').textContent = '0%';
         $('recovery-steps').innerHTML = '';
+
         addLog('recover', 'fsck()', '"' + f.name + '" -- ' + damaged.length + ' damaged, ' + intact.length + ' intact');
+
         await sleep(STEP_DELAY);
+
+        /* ================= STEP 1 ================= */
         addStep('[1/6] Scanning damaged blocks...');
         addLog('recover', 'blkid()', 'Scanning [' + damaged.join(',') + ']');
-        damaged.forEach(function(b) { setBlockCls(b, 'damaged'); });
+
+        damaged.forEach(function(b) {
+            setBlockCls(b, 'damaged');
+        });
+
         setProgress(10);
         await sleep(STEP_DELAY * 2);
+
+        /* ================= STEP 2 ================= */
         addStep('[2/6] Verifying journal...');
         addLog('recover', 'journal_verify()', 'Checking journal for inode ' + f.id);
+
         setProgress(20);
         await sleep(STEP_DELAY * 2);
+
         addLog('recover', 'journal_verify() ->', f.content.length + ' bytes recoverable');
         markDone();
+
         addStep('[2/6] Journal OK');
         setProgress(30);
         await sleep(STEP_DELAY);
-        addStep('[3/6] Allocating ' + damaged.length + ' replacements...');
-        addLog('recover', 'alloc_blocks()', 'Requesting ' + damaged.length + ' free blocks');
-        var repl = allocBlocksRandom(damaged.length);
-        if (!repl) { addLog('error', 'alloc_blocks()', 'ENOSPC'); addStep('[3/6] FAILED: ENOSPC'); break; }
-        repl.forEach(function(b) { diskBlocks[b] = 'allocated'; });
-        addLog('recover', 'alloc_blocks() ->', '[' + repl.join(',') + ']');
+
+        /* ================= STEP 3 ================= */
+        addStep('[3/6] Preparing in-place recovery...');
+        addLog('recover', 'alloc_blocks()', 'In-place recovery (no reallocation)');
+
         setProgress(40);
         await sleep(STEP_DELAY);
-        addStep('[4/6] Remapping & copying data...');
+
+        /* ================= STEP 4 ================= */
+        addStep('[4/6] Repairing damaged blocks in-place...');
+
         for (var ri = 0; ri < damaged.length; ri++) {
-            var old = damaged[ri];
-            var nw = repl[ri];
-            setBlockCls(nw, 'recovering');
-            addLog('recover', 'block_remap()', '#' + old + ' -> #' + nw + ' (' + BLOCK_SIZE_KB + ' KB)');
-            await sleep(STEP_DELAY);
-            setBlockCls(nw, 'recovered-flash');
-            setTimeout(function() { setBlockCls(nw, 'allocated'); }, 500);
-            diskBlocks[old] = 'free';
-            setProgress(40 + Math.round(((ri + 1) / damaged.length) * 30));
-        }
+    var blk = damaged[ri];
+
+    setBlockCls(blk, 'recovering');
+
+    addLog(
+        'recover',
+        'block_repair()',
+        '#' + blk + ' repaired in-place (' + BLOCK_SIZE_KB + ' KB)'
+    );
+
+    await sleep(STEP_DELAY);
+
+    // ✅ UPDATE STATE HERE
+    diskBlocks[blk] = 'allocated';
+
+    setBlockCls(blk, 'recovered-flash');
+
+    setTimeout((function(b) {
+        return function() {
+            var el = diskEl.children[b];
+            if (!el) return;
+
+            el.classList.remove('damaged', 'recovering', 'recovered-flash');
+            el.className = 'disk-block allocated';
+        };
+    })(blk), 500);
+
+    setProgress(40 + Math.round(((ri + 1) / damaged.length) * 30));
+}
+
         markDone();
-        addStep('[4/6] ' + damaged.length + ' remapped, ' + intact.length + ' kept');
+        addStep('[4/6] ' + damaged.length + ' blocks repaired in-place');
+
         setProgress(70);
         await sleep(STEP_DELAY);
+
+        /* ================= STEP 5 ================= */
         addStep('[5/6] Repairing inode...');
-        addLog('recover', 'inode_repair()', 'inode ' + f.id + ': [' + damaged.join(',') + '] -> [' + repl.join(',') + ']');
-        var newBlks = [];
-        var rptr = 0;
-        for (var bi = 0; bi < f.blocks.length; bi++) {
-            if (damaged.indexOf(f.blocks[bi]) !== -1) { newBlks.push(repl[rptr]); rptr++; }
-            else { newBlks.push(f.blocks[bi]); }
-        }
-        f.blocks = newBlks;
+        addLog(
+            'recover',
+            'inode_repair()',
+            'inode ' + f.id + ': in-place recovery, no remap'
+        );
+
         setProgress(88);
         await sleep(STEP_DELAY);
+
         markDone();
         addStep('[5/6] Inode repaired');
+
         await sleep(STEP_DELAY);
+
+        /* ================= STEP 6 ================= */
         addStep('[6/6] Syncing...');
         addLog('recover', 'sync()', 'Flushing "' + f.name + '"');
+
         setProgress(95);
         await sleep(STEP_DELAY * 2);
+
+        /* FINALIZE */
         f.crashed = false;
         f.damagedBlocks = [];
         f.intactBlocks = [];
         f.everRecovered = true;
+
         totalRecovered++;
         ioStats.recoveries++;
+
         setProgress(100);
         $('recovery-pct').textContent = '100%';
+
         markDone();
         addStep('[6/6] 100% recovered');
-        addLog('recover-done', 'fsck() ->', '"' + f.name + '" RECOVERED 100% -- ' + f.content.length + ' bytes across ' + f.blocks.length + ' blocks');
-        f.blocks.forEach(function(b, i) { setTimeout(function() { var el = diskEl.children[b]; if (el) { el.classList.add('recovered-flash'); setTimeout(function() { el.classList.remove('recovered-flash'); }, 600); } }, i * 25); });
-        if (openFileId === f.id) { $('rw-status').textContent = 'OK'; $('rw-status').className = 'rw-status status-ok'; $('file-content').value = f.content || '(empty)'; $('file-content').disabled = false; $('rw-size').textContent = f.blocks.length + ' blk \u00b7 ' + f.sizeKB + ' KB'; }
+
+        addLog(
+            'recover-done',
+            'fsck() ->',
+            '"' + f.name + '" RECOVERED 100% -- ' +
+            f.content.length + ' bytes across ' +
+            f.blocks.length + ' blocks (in-place)'
+        );
+
+        /* Visual flash */
+        f.blocks.forEach(function(b, i) {
+            setTimeout(function() {
+                var el = diskEl.children[b];
+                if (el) {
+                    el.classList.add('recovered-flash');
+                    setTimeout(function() {
+                        el.classList.remove('recovered-flash');
+                    }, 600);
+                }
+            }, i * 25);
+        });
+
+        /* Restore editor if open */
+        if (openFileId === f.id) {
+            $('rw-status').textContent = 'OK';
+            $('rw-status').className = 'rw-status status-ok';
+            $('file-content').value = f.content || '(empty)';
+            $('file-content').disabled = false;
+            $('rw-size').textContent =
+                f.blocks.length + ' blk · ' + f.sizeKB + ' KB';
+        }
+
         renderAll();
         await sleep(STEP_DELAY * 3);
     }
+
     addLog('recover-done', 'fsck()', crashed.length + ' file(s) restored 100%');
-    setTimeout(function() { recoveryPanel.style.display = 'none'; }, 2500);
+
+    setTimeout(function() {
+        recoveryPanel.style.display = 'none';
+    }, 2500);
+
     isBusy = false;
     renderAll();
 }

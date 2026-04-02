@@ -256,10 +256,22 @@ main { display: flex; height: calc(100vh - 50px); overflow: hidden; }
 /* Free / superblock / damaged — single line, block number */
 .disk-block.free { background: var(--block-free-bg); color: var(--block-free-text); border: 1px solid var(--block-free-border); }
 .disk-block.superblock { background: var(--blue); color: #fff; border: 1px solid rgba(62,168,255,0.5); box-shadow: 0 0 10px rgba(62,168,255,0.15); }
-.disk-block.damaged { background: var(--red); color: #fff; border: 1px solid rgba(255,77,106,0.5); box-shadow: 0 0 10px rgba(255,77,106,0.15); animation: dmg-pulse 2s ease-in-out infinite; }
+.disk-block.damaged {
+    background: var(--red);
+    color: #fff;
+    border: 1px solid rgba(255,77,106,0.7);
+
+    /* Strong glowing effect */
+    box-shadow:
+        0 0 8px rgba(255,77,106,0.6),
+        0 0 16px rgba(255,77,106,0.5),
+        0 0 28px rgba(255,77,106,0.4);
+
+    animation: crash-glow 0.8s ease-in-out infinite alternate;
+}
 
 /* Allocated block WITHOUT data — shows block number */
-.disk-block.allocated { background: var(--accent); color: var(--block-alloc-text); border: 1px solid rgba(0,229,155,0.35); box-shadow: 0 0 8px rgba(0,229,155,0.1); }
+.disk-block.allocated { background: var(--accent); color: var(--block-alloc-text);animation: none !important; border: 1px solid rgba(0,229,155,0.35); box-shadow: 0 0 8px rgba(0,229,155,0.1); }
 
 /* Allocated block WITH data — wraps text, shows content */
 .disk-block.has-data {
@@ -338,3 +350,19 @@ body::after { content: ''; position: fixed; top: -30%; left: -20%; width: 70%; h
 
 @media (max-width: 1100px) { .panel-left { width: 260px; min-width: 260px; } .panel-right { width: 270px; min-width: 270px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+@keyframes crash-glow {
+    0% {
+        transform: scale(1);
+        box-shadow:
+            0 0 6px rgba(255,77,106,0.5),
+            0 0 12px rgba(255,77,106,0.4);
+    }
+    100% {
+        transform: scale(1.08);
+        box-shadow:
+            0 0 14px rgba(255,77,106,0.9),
+            0 0 30px rgba(255,77,106,0.7),
+            0 0 45px rgba(255,77,106,0.5);
+    }
+}
