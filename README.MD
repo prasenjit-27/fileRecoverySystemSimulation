@@ -1,5 +1,7 @@
 # 💻 Interactive File System Recovery Simulator
 
+this is new
+
 An advanced **Operating System project** that visually demonstrates how file systems work internally — including **file allocation, journaling, caching, crashes, and recovery mechanisms**.
 
 This simulator helps understand complex OS concepts through an **interactive UI and step-by-step execution**.
