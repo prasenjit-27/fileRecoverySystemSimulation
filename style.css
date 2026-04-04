@@ -216,7 +216,7 @@ main { display: flex; height: calc(100vh - 50px); overflow: hidden; }
 .stat-value.red { color: var(--red); }
 .stat-value.orange { color: var(--orange); }
 
-.legend-bar { display: flex; gap: 10px; flex-wrap: wrap; }
+.legend-bar { display: flex; gap: 10px; flex-wrap: wrap;  justify-content: center; align-items: center; padding-top: 3rem;}
 .legend-chip { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--fg-muted); }
 .chip-dot { width: 8px; height: 8px; border-radius: 2px; }
 .chip-dot.free { background: var(--block-free-bg); border: 1px solid var(--block-free-border); }
