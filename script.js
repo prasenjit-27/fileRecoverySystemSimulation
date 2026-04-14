@@ -35,7 +35,7 @@ function initState() {
 function init() {
     initState();
     journalEl.innerHTML = '';
-    addLog('system', 'SYSTEM RESET', 'SIMFS v3.0 journaling filesystem initialized');
+    addLog('system', 'SYSTEM RESET', 'NTFS journaling filesystem initialized');
     addLog('system', 'mount()', '/dev/sda1 mounted, journal replay: clean');
     renderAll();
 }
@@ -660,7 +660,7 @@ function renderMetadata() {
     var c = { free: 0, superblock: 0, allocated: 0, damaged: 0 };
     for (var i = 0; i < TOTAL_BLOCKS; i++) c[diskBlocks[i]]++;
     var crashed = 0; for (var j = 0; j < files.length; j++) { if (files[j].crashed) crashed++; }
-    var rows = [['Filesystem', 'SIMFS v3.0'], ['Journaling', 'Enabled'], ['Block Size', '4 KB'], ['Total Blocks', '256'], ['Free Blocks', c.free], ['Used Blocks', c.allocated + c.superblock], ['Damaged', c.damaged], ['Crashed Files', crashed], ['Recovered', totalRecovered], ['Inodes', files.length]];
+    var rows = [['Filesystem', 'NTFS'], ['Journaling', 'Enabled'], ['Block Size', '4 KB'], ['Total Blocks', '256'], ['Free Blocks', c.free], ['Used Blocks', c.allocated + c.superblock], ['Damaged', c.damaged], ['Crashed Files', crashed], ['Recovered', totalRecovered], ['Inodes', files.length]];
     var html = ''; for (var r = 0; r < rows.length; r++) html += '<div class="meta-row"><span class="meta-key">' + rows[r][0] + '</span><span class="meta-val">' + rows[r][1] + '</span></div>';
     $('meta-grid').innerHTML = html;
 }
@@ -735,7 +735,6 @@ function confirmCreate() {
 }
 
  $('btn-new-file').addEventListener('click', showModal);
- $('btn-allocate-random').addEventListener('click', allocateRandom);
  $('btn-optimize').addEventListener('click', optimizeSystem);
  $('btn-crash-system').addEventListener('click', crashSystem);
  $('btn-recover-system').addEventListener('click', recoverSystem);
